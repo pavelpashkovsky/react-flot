@@ -1948,6 +1948,7 @@ Licensed under the MIT license.
 
             // draw markings
             var markings = options.grid.markings;
+            const ranges = [];
             if (markings) {
                 if ($.isFunction(markings)) {
                     axes = plot.getAxes();
@@ -2002,6 +2003,9 @@ Licensed under the MIT license.
                     if (xequal || yequal) {
                         var lineWidth = m.lineWidth || options.grid.markingsLineWidth,
                             subPixel = lineWidth % 2 ? 0.5 : 0;
+                        
+                        ranges.push({ xrange, yrange, subPixel, lineWidth });
+
                         ctx.beginPath();
                         ctx.strokeStyle = m.color || options.grid.markingsColor;
                         ctx.lineWidth = lineWidth;
@@ -2018,6 +2022,11 @@ Licensed under the MIT license.
                         ctx.fillRect(xrange.from, yrange.to,
                                      xrange.to - xrange.from,
                                      yrange.from - yrange.to);
+                    }
+
+                    if (options?.selection?.selectionType === 'single') {
+                        drawHorizontalSelectionLines({ ranges, ctx, options });
+                        drawSideHandle({ ranges, ctx, options });
                     }
                 }
             }
@@ -3166,3 +3175,124 @@ Licensed under the MIT license.
     }
 
 })(jQuery);
+
+const drawHorizontalSelectionLines = ({ ranges, ctx, options }) => {
+    // this function draws top and bottom lines
+    // FROM selection start TO selection end
+    
+    const leftBoundaryLine = ranges?.[0];
+    const rightBoundaryLine = ranges?.[1];
+
+    if (!rightBoundaryLine || !leftBoundaryLine) {
+        return;
+    }
+    // top line
+    const topLineWidth = 4;
+    ctx.beginPath();
+    ctx.strokeStyle = options.grid.markingsColor;
+    ctx.lineWidth = topLineWidth;
+    ctx.setLineDash([]);
+    ctx.moveTo(
+        rightBoundaryLine?.xrange.from + rightBoundaryLine?.subPixel || 0,
+        rightBoundaryLine?.yrange.to + topLineWidth / 2
+    );
+    ctx.lineTo(
+        leftBoundaryLine?.xrange.from + leftBoundaryLine?.subPixel || 0,
+        leftBoundaryLine?.yrange.to + topLineWidth / 2
+    );
+    ctx.stroke();
+
+    // bottom line
+    ctx.beginPath();
+    ctx.strokeStyle = options.grid.markingsColor;
+    ctx.lineWidth = rightBoundaryLine?.lineWidth || 1;
+    ctx.setLineDash([2]);
+    ctx.moveTo(
+        rightBoundaryLine?.xrange.from + rightBoundaryLine?.subPixel || 0,
+        rightBoundaryLine?.yrange.from
+    );
+    ctx.lineTo(
+        leftBoundaryLine?.xrange.from + leftBoundaryLine?.subPixel || 0,
+        leftBoundaryLine?.yrange.from
+    );
+    ctx.stroke();
+};
+
+const drawSideHandle = ({ ctx, ranges, options }) => {
+    // this function draws rounded rectangles on each side of selection
+    // which looks like handles
+    for (let i = 0; i < ranges?.length; i++) {
+        const range = ranges[i];
+        const handleWidth = 4;
+        const handleHeight = 22;
+
+        drawRoundedRect(
+            ctx,
+            range?.xrange?.from - handleWidth / 2 + range.subPixel,
+            range?.yrange?.from / 2 - handleHeight / 2 + 3,
+            handleWidth,
+            handleHeight,
+            2,
+            options.grid.markingsColor
+        );
+    }
+};
+
+function drawRoundedRect(ctx, left, top, width, height, radius, fillColor) {
+    var K = (4 * (Math.SQRT2 - 1)) / 3;
+    var right = left + width;
+    var bottom = top + height;
+    ctx.beginPath();
+    ctx.setLineDash([]);
+    // top left
+    ctx.moveTo(left + radius, top);
+    // top right
+    ctx.lineTo(right - radius, top);
+    //right top
+    ctx.bezierCurveTo(
+        right + radius * (K - 1),
+        top,
+        right,
+        top + radius * (1 - K),
+        right,
+        top + radius
+    );
+    //right bottom
+    ctx.lineTo(right, bottom - radius);
+    //bottom right
+    ctx.bezierCurveTo(
+        right,
+        bottom + radius * (K - 1),
+        right + radius * (K - 1),
+        bottom,
+        right - radius,
+        bottom
+    );
+    //bottom left
+    ctx.lineTo(left + radius, bottom);
+    //left bottom
+    ctx.bezierCurveTo(
+        left + radius * (1 - K),
+        bottom,
+        left,
+        bottom + radius * (K - 1),
+        left,
+        bottom - radius
+    );
+    //left top
+    ctx.lineTo(left, top + radius);
+    //top left again
+    ctx.bezierCurveTo(
+        left,
+        top + radius * (1 - K),
+        left + radius * (1 - K),
+        top,
+        left + radius,
+        top
+    );
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = fillColor;
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+    ctx.stroke();
+}
